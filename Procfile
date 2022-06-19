@@ -1,1 +1,1 @@
-web: gunicorn myChat:--app --log-file -
+web: gunicorn myChat.py: --log-file -
