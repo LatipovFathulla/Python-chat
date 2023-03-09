@@ -1,6 +1,7 @@
 from pywebio import start_server
 from pywebio.input import *
 from pywebio.output import *
+from pywebio.input import textarea
 from pywebio.session import run_async, run_js
 
 import asyncio
@@ -15,7 +16,7 @@ async def main():
     global chat_msgs
 
     put_markdown('## Добро пожаловать в наш чат!!!')
-
+    put_text("Добро пожаловать в чат для общения! Здесь вы можете общаться с людьми из разных уголков мира и делиться своими мыслями и идеями в режиме реального времени. Будьте вежливы и уважайте других участников чата, и вы обязательно найдете новых интересных собеседников!")
     msg_box = output()
     put_scrollable(msg_box, height=300, keep_bottom=True)
 
@@ -47,7 +48,7 @@ async def main():
     msg_box.append(put_markdown(f"Пользователь `{nickname}` покинул чат!"))
     chat_msgs.append(('Этот', f"Пользователь `{nickname}` покинул чат!"))
 
-    put_buttons(["Перезайти"], onclick=lambda btn: run_js('window.location.reload('))
+    put_buttons(["Перезайти"], onclick=lambda btn: run_js('window.location.reload()'))
 
 
 async def refresh_msg(nickname, msg_box):
