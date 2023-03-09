@@ -2,7 +2,7 @@ from pywebio import start_server
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.input import textarea
-from pywebio.session import run_async, run_js
+from pywebio.session import run_async, run_js, set_env
 
 import asyncio
 
@@ -14,6 +14,7 @@ MAX_MESSAGES_COUNT = 400
 
 async def main():
     global chat_msgs
+    set_env(title="UCChat")
 
     put_markdown('## Добро пожаловать в наш чат!!!')
     put_text("Добро пожаловать в чат для общения! Здесь вы можете общаться с людьми из разных уголков мира и делиться своими мыслями и идеями в режиме реального времени. Будьте вежливы и уважайте других участников чата, и вы обязательно найдете новых интересных собеседников!")
