@@ -46,7 +46,60 @@ def record_audio(duration=5, sample_rate=44100, chunk=1024, channels=1):
 
 async def main():
     global chat_msgs
-    set_env(title="UCChat")
+    put_html("""
+        <style>
+        body {
+            background-color: #2f302f;
+            color: white;
+        }
+        
+        #input-container {
+            background-color: #2f302f;
+        }
+        .card-header {
+            color:#fff !important;
+        }
+        #pywebio-scope-ROOT {
+        border: 2px solid #fff; /* Голубая рамка */
+        border-radius: 10px; /* Скругленные углы */
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1), /* Основная тень */
+                    0 6px 20px rgba(0, 0, 0, 0.1);
+        padding: 15px;
+         }
+        .webio-scrollable.scrollable-border {
+        border: 1px solid #fff;
+        border-radius: 10px;
+        }            
+        .card {
+            background-color:#2f302f;
+            border: 2px solid #fff;
+            border-radius: 10px;
+        }
+        
+        .btn-primary {
+            background-color: #4caf50;
+            border-color: #4caf50;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease; 
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn-primary:hover {
+            background-color: #45a049; /* Цвет кнопки при наведении */
+            border-color: #4caf50;
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.4); /* Тень при наведении */
+        }
+    
+        .btn-primary:active {
+            background-color: #3e8e41; /* Цвет кнопки при клике */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Тень при клике */
+            transform: translateY(2px); /* Небольшой сдвиг вниз при клике */
+        }
+        .footer {
+            display:none
+        }    
+        </style>
+        """)
+    set_env(title="LFchat")
 
     put_markdown('## Добро пожаловать в наш чат!!!')
     put_text(
@@ -143,4 +196,4 @@ async def refresh_msg(nickname, msg_box):
 
 
 if __name__ == "__main__":
-    start_server(main, debug=True, port=8000, cdn=False)
+    start_server(main, debug=True, port=7340, cdn=False)
