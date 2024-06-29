@@ -2,6 +2,8 @@ from pywebio import start_server
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.session import run_async, run_js, set_env, eval_js
+from pydub import AudioSegment
+import io
 
 import asyncio
 import base64
@@ -10,6 +12,10 @@ import tempfile
 import os
 import pyaudio
 import wave
+
+AudioSegment.converter = "/usr/local/bin/ffmpeg"
+AudioSegment.ffmpeg = "/usr/local/bin/ffmpeg"
+AudioSegment.ffprobe = "/usr/local/bin/ffprobe"
 
 chat_msgs = []
 online_users = set()
@@ -47,8 +53,8 @@ def record_audio(duration=5, sample_rate=44100, chunk=1024, channels=1):
 async def main():
     global chat_msgs
     put_html("""
-        <style>
-        body {
+    <style>
+     body {
             background-color: #2f302f;
             color: white;
         }
@@ -96,9 +102,66 @@ async def main():
         }
         .footer {
             display:none
-        }    
-        </style>
-        """)
+        }   
+    </style>     
+    <script>
+    let mediaRecorder;
+    let audioChunks = [];
+    
+    async function startRecording() {
+        console.log("Начало записи");
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log("Доступ к микрофону получен");
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.start();
+    
+            mediaRecorder.addEventListener("dataavailable", event => {
+                console.log("Получен фрагмент аудио");
+                audioChunks.push(event.data);
+            });
+    
+            mediaRecorder.addEventListener("stop", () => {
+                console.log("Запись остановлена");
+                const audioBlob = new Blob(audioChunks);
+                sendAudioToServer(audioBlob);
+                audioChunks = [];
+            });
+        } catch (err) {
+            console.error("Ошибка при запуске записи:", err);
+        }
+    }
+    
+    function stopRecording() {
+        console.log("Остановка записи");
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
+    }
+    
+    function sendAudioToServer(audioBlob) {
+        console.log("Отправка аудио на сервер");
+        const reader = new FileReader();
+        reader.onloadend = function() {
+            const base64data = reader.result.split(',')[1];
+            console.log("Аудио преобразовано в base64");
+            
+            // Use the correct PyWebIO function to send data
+            py_send_data({'type': 'audio', 'data': base64data});
+        };
+        reader.readAsDataURL(audioBlob);
+    }
+    
+    // Make functions globally accessible
+    window.startRecording = startRecording;
+    window.stopRecording = stopRecording;
+
+    // Define a function to receive confirmation from the server
+    window.audio_received = function() {
+        console.log("Сервер подтвердил получение аудио");
+    };
+</script>
+    """)
     set_env(title="LFchat")
 
     put_markdown('## Добро пожаловать в наш чат!!!')
@@ -128,45 +191,85 @@ async def main():
             break
 
         if data['cmd'] == 'Записать голосовое сообщение':
+            print("Начало записи голосового сообщения")
             toast("Запись голосового сообщения начнется через 3 секунды...")
             await asyncio.sleep(3)
             toast("Идет запись голосового сообщения...")
 
-            audio_file = record_audio(duration=6)
+            run_js('startRecording()')
+            await asyncio.sleep(6)  # Записываем 6 секунд
+            run_js('stopRecording()')
 
-            recognizer = sr.Recognizer()
-            try:
-                with sr.AudioFile(audio_file) as source:
-                    audio = recognizer.record(source)
-                    text = recognizer.recognize_google(audio, language="ru-RU")
-                    msg_box.append(put_markdown(f"`{nickname}`: {text} (голосовое сообщение)"))
-                    chat_msgs.append((nickname, text))
-            except sr.UnknownValueError:
-                msg_box.append(put_markdown(f"`{nickname}`: Голосовое сообщение не распознано"))
-                chat_msgs.append((nickname, "Голосовое сообщение не распознано"))
-            except Exception as e:
-                msg_box.append(put_markdown(f"`{nickname}`: Ошибка при обработке голосового сообщения: {str(e)}"))
-                chat_msgs.append((nickname, f"Ошибка при обработке голосового сообщения: {str(e)}"))
+            print("Ожидание аудиоданных от клиента")
+            audio_data = await eval_js('new Promise(resolve => py_send_data = resolve)')
 
-            with open(audio_file, "rb") as audio:
-                audio_data = base64.b64encode(audio.read()).decode('utf-8')
+            print(f"Получены аудиоданные: {audio_data is not None}")
 
-            audio_html = f'<audio controls src="data:audio/wav;base64,{audio_data}"></audio>'
-            msg_box.append(put_html(audio_html))
-            chat_msgs.append((nickname, audio_html))
+            if audio_data and audio_data.get('type') == 'audio':
+                print("Обработка аудиоданных")
+                audio_base64 = audio_data['data']
+                audio_bytes = base64.b64decode(audio_base64)
 
-            os.unlink(audio_file)
+                # Сохраняем аудио во временный файл
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_audio:
+                    temp_audio.write(audio_bytes)
+                    temp_audio_path = temp_audio.name
+
+                print(f"Временный файл создан: {temp_audio_path}")
+
+                try:
+                    # Попытка преобразовать аудио в WAV
+                    audio = AudioSegment.from_file(temp_audio_path)
+                    wav_path = temp_audio_path + ".wav"
+                    audio.export(wav_path, format="wav")
+
+                    recognizer = sr.Recognizer()
+                    with sr.AudioFile(wav_path) as source:
+                        audio = recognizer.record(source)
+                        text = recognizer.recognize_google(audio, language="ru-RU")
+                        print(f"Распознанный текст: {text}")
+                        msg_box.append(put_markdown(f"`{nickname}`: {text} (голосовое сообщение)"))
+                        chat_msgs.append((nickname, text))
+
+                    # Отображаем аудио-плеер
+                    with open(temp_audio_path, "rb") as audio_file:
+                        audio_base64 = base64.b64encode(audio_file.read()).decode('utf-8')
+                    audio_html = f'<audio controls src="data:audio/webm;base64,{audio_base64}"></audio>'
+                    msg_box.append(put_html(audio_html))
+                    chat_msgs.append((nickname, audio_html))
+
+                except sr.UnknownValueError:
+                    print("Голосовое сообщение не распознано")
+                    msg_box.append(put_markdown(f"`{nickname}`: Голосовое сообщение не распознано"))
+                    chat_msgs.append((nickname, "Голосовое сообщение не распознано"))
+                except Exception as e:
+                    print(f"Ошибка при обработке голосового сообщения: {str(e)}")
+                    msg_box.append(put_markdown(f"`{nickname}`: Ошибка при обработке голосового сообщения: {str(e)}"))
+                    chat_msgs.append((nickname, f"Ошибка при обработке голосового сообщения: {str(e)}"))
+                finally:
+                    # Удаляем временные файлы
+                    if os.path.exists(temp_audio_path):
+                        os.remove(temp_audio_path)
+                    if os.path.exists(wav_path):
+                        os.remove(wav_path)
+
+                run_js('audio_received()')
+            else:
+                print("Аудиоданные не получены или имеют неправильный формат")
             continue
 
         if data['msg']:
-            msg_box.append(put_markdown(f"`{nickname}`: {data['msg']}"))
+            message = f"`{nickname}`: {data['msg']}"
             chat_msgs.append((nickname, data['msg']))
+            msg_box.append(put_markdown(message))
 
         if data['image']:
-            img_url = put_image(data['image']['content'])
-            msg_box.append(put_markdown(f"`{nickname}`: Изображение"))
-            msg_box.append(img_url)
-            chat_msgs.append((nickname, img_url))
+            img_data = base64.b64encode(data['image']['content']).decode('utf-8')
+            img_html = f'<img src="data:image/png;base64,{img_data}" style="max-width:100%;height:auto;">'
+            message = f"`{nickname}`: Изображение"
+            chat_msgs.append((nickname, img_html))
+            msg_box.append(put_markdown(message))
+            msg_box.append(put_html(img_html))
 
     refresh_task.close()
 
@@ -176,6 +279,8 @@ async def main():
     chat_msgs.append(('Этот', f"Пользователь `{nickname}` покинул чат!"))
 
     put_buttons(["Перезайти"], onclick=lambda btn: run_js('window.location.reload()'))
+
+
 
 
 async def refresh_msg(nickname, msg_box):
