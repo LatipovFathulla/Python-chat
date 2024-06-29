@@ -1,4 +1,4 @@
-#!/Users/fathullalatipov/Desktop/work/Python-chat/venv/bin/python3
+#!/var/www/Python-chat/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys

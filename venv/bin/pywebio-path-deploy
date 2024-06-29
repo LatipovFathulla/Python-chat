@@ -1,4 +1,4 @@
-#!/Users/fathullalatipov/Desktop/work/Python-chat/venv/bin/python3
+#!/var/www/Python-chat/venv/bin/python3
 import argparse
 from pywebio.platform import path_deploy, path_deploy_http
 
