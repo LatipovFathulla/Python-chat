@@ -191,7 +191,7 @@ async def main():
             break
 
         if data['cmd'] == 'Записать голосовое сообщение':
-            print("Начало записи голосового сообщения")
+            print("Start recording a voice message")
             toast("Запись голосового сообщения начнется через 3 секунды...")
             await asyncio.sleep(3)
             toast("Идет запись голосового сообщения...")
@@ -200,13 +200,13 @@ async def main():
             await asyncio.sleep(6)  # Записываем 6 секунд
             run_js('stopRecording()')
 
-            print("Ожидание аудиоданных от клиента")
+            print("Waiting for audio data from the client")
             audio_data = await eval_js('new Promise(resolve => py_send_data = resolve)')
 
-            print(f"Получены аудиоданные: {audio_data is not None}")
+            print(f"Audio data received: {audio_data is not None}")
 
             if audio_data and audio_data.get('type') == 'audio':
-                print("Обработка аудиоданных")
+                print("Audio processing")
                 audio_base64 = audio_data['data']
                 audio_bytes = base64.b64decode(audio_base64)
 
@@ -215,7 +215,7 @@ async def main():
                     temp_audio.write(audio_bytes)
                     temp_audio_path = temp_audio.name
 
-                print(f"Временный файл создан: {temp_audio_path}")
+                print(f"Temporary file created: {temp_audio_path}")
 
                 try:
                     # Попытка преобразовать аудио в WAV
@@ -227,7 +227,7 @@ async def main():
                     with sr.AudioFile(wav_path) as source:
                         audio = recognizer.record(source)
                         text = recognizer.recognize_google(audio, language="ru-RU")
-                        print(f"Распознанный текст: {text}")
+                        print(f"Recognized text: {text}")
                         msg_box.append(put_markdown(f"`{nickname}`: {text} (голосовое сообщение)"))
                         chat_msgs.append((nickname, text))
 
@@ -239,11 +239,11 @@ async def main():
                     chat_msgs.append((nickname, audio_html))
 
                 except sr.UnknownValueError:
-                    print("Голосовое сообщение не распознано")
+                    print("Voice message not recognized")
                     msg_box.append(put_markdown(f"`{nickname}`: Голосовое сообщение не распознано"))
                     chat_msgs.append((nickname, "Голосовое сообщение не распознано"))
                 except Exception as e:
-                    print(f"Ошибка при обработке голосового сообщения: {str(e)}")
+                    print(f"Error processing voice message: {str(e)}")
                     msg_box.append(put_markdown(f"`{nickname}`: Ошибка при обработке голосового сообщения: {str(e)}"))
                     chat_msgs.append((nickname, f"Ошибка при обработке голосового сообщения: {str(e)}"))
                 finally:
@@ -255,7 +255,7 @@ async def main():
 
                 run_js('audio_received()')
             else:
-                print("Аудиоданные не получены или имеют неправильный формат")
+                print("Audio data not received or in incorrect format")
             continue
 
         if data['msg']:
