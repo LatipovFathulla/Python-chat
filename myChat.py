@@ -105,61 +105,65 @@ async def main():
         }   
     </style>     
     <script>
-    let mediaRecorder;
-    let audioChunks = [];
-    
-    async function startRecording() {
-        console.log("Начало записи");
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            console.log("Доступ к микрофону получен");
-            mediaRecorder = new MediaRecorder(stream);
-            mediaRecorder.start();
-    
-            mediaRecorder.addEventListener("dataavailable", event => {
-                console.log("Получен фрагмент аудио");
-                audioChunks.push(event.data);
-            });
-    
-            mediaRecorder.addEventListener("stop", () => {
-                console.log("Запись остановлена");
-                const audioBlob = new Blob(audioChunks);
-                sendAudioToServer(audioBlob);
-                audioChunks = [];
-            });
-        } catch (err) {
-            console.error("Ошибка при запуске записи:", err);
-        }
-    }
-    
-    function stopRecording() {
-        console.log("Остановка записи");
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-        }
-    }
-    
-    function sendAudioToServer(audioBlob) {
-        console.log("Отправка аудио на сервер");
-        const reader = new FileReader();
-        reader.onloadend = function() {
-            const base64data = reader.result.split(',')[1];
-            console.log("Аудио преобразовано в base64");
-            
-            // Use the correct PyWebIO function to send data
-            py_send_data({'type': 'audio', 'data': base64data});
-        };
-        reader.readAsDataURL(audioBlob);
-    }
-    
-    // Make functions globally accessible
-    window.startRecording = startRecording;
-    window.stopRecording = stopRecording;
+let mediaRecorder;
+let audioChunks = [];
 
-    // Define a function to receive confirmation from the server
-    window.audio_received = function() {
-        console.log("Сервер подтвердил получение аудио");
+async function startRecording() {
+    console.log("Начало записи");
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("Доступ к микрофону получен");
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.start();
+
+        mediaRecorder.addEventListener("dataavailable", event => {
+            console.log("Получен фрагмент аудио");
+            audioChunks.push(event.data);
+        });
+
+        mediaRecorder.addEventListener("stop", () => {
+            console.log("Запись остановлена");
+            const audioBlob = new Blob(audioChunks);
+            sendAudioToServer(audioBlob);
+            audioChunks = [];
+        });
+    } catch (err) {
+        console.error("Ошибка при запуске записи:", err);
+    }
+}
+
+function stopRecording() {
+    console.log("Остановка записи");
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+}
+
+function sendAudioToServer(audioBlob) {
+    console.log("Отправка аудио на сервер");
+    const reader = new FileReader();
+    reader.onloadend = function() {
+        const base64data = reader.result.split(',')[1];
+        console.log("Аудио преобразовано в base64");
+        
+        // Use the correct PyWebIO function to send data
+        if (window.py_send_data) {
+            window.py_send_data({'type': 'audio', 'data': base64data});
+        } else {
+            console.error("py_send_data is not defined");
+        }
     };
+    reader.readAsDataURL(audioBlob);
+}
+
+// Make functions globally accessible
+window.startRecording = startRecording;
+window.stopRecording = stopRecording;
+
+// Define a function to receive confirmation from the server
+window.audio_received = function() {
+    console.log("Сервер подтвердил получение аудио");
+};
 </script>
     """)
     set_env(title="LFchat")
@@ -201,7 +205,7 @@ async def main():
             run_js('stopRecording()')
 
             print("Waiting for audio data from the client")
-            audio_data = await eval_js('new Promise(resolve => py_send_data = resolve)')
+            audio_data = await eval_js('new Promise(resolve => window.py_send_data = resolve)')
 
             print(f"Audio data received: {audio_data is not None}")
 
@@ -210,14 +214,16 @@ async def main():
                 audio_base64 = audio_data['data']
                 audio_bytes = base64.b64decode(audio_base64)
 
-                # Сохраняем аудио во временный файл
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_audio:
-                    temp_audio.write(audio_bytes)
-                    temp_audio_path = temp_audio.name
-
-                print(f"Temporary file created: {temp_audio_path}")
+                temp_audio_path = ''
+                wav_path = ''
 
                 try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_audio:
+                        temp_audio.write(audio_bytes)
+                        temp_audio_path = temp_audio.name
+
+                    print(f"Temporary file created: {temp_audio_path}")
+
                     # Попытка преобразовать аудио в WAV
                     audio = AudioSegment.from_file(temp_audio_path)
                     wav_path = temp_audio_path + ".wav"
@@ -248,9 +254,9 @@ async def main():
                     chat_msgs.append((nickname, f"Ошибка при обработке голосового сообщения: {str(e)}"))
                 finally:
                     # Удаляем временные файлы
-                    if os.path.exists(temp_audio_path):
+                    if temp_audio_path and os.path.exists(temp_audio_path):
                         os.remove(temp_audio_path)
-                    if os.path.exists(wav_path):
+                    if wav_path and os.path.exists(wav_path):
                         os.remove(wav_path)
 
                 run_js('audio_received()')
