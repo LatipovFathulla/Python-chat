@@ -271,7 +271,7 @@ window.audio_received = function() {
 
         if data['image']:
             img_data = base64.b64encode(data['image']['content']).decode('utf-8')
-            img_html = f'<img src="data:image/png;base64,{img_data}" style="max-width:100%;height:auto;">'
+            img_html = f'<img src="data:image/png;base64,{img_data}" style="max-width:200px%;height:200px;border-radius:10px">'
             message = f"`{nickname}`: Изображение"
             chat_msgs.append((nickname, img_html))
             msg_box.append(put_markdown(message))
